@@ -35,8 +35,10 @@ static void device_callback(mapper_db_device dev,
 {
     if (action == MDB_NEW) {
         if (strstr(dev->name, device_name)!=0
-            && strcmp(dev->name, mdev_name(recdev)?mdev_name(recdev):"")!=0)
+            && strcmp(dev->name, mdev_name(recdev)?mdev_name(recdev):"")!=0) {
             mapper_monitor_request_signals_by_name(mon, dev->name);
+            strncpy(device_full_name, dev->name, 128);
+        }
     }
 }
 
@@ -74,8 +76,12 @@ void recmonitor_poll()
 
 void recmonitor_stop()
 {
-    if (mon)
+    if (mon) {
+        if (device_full_name[0] == '/') {
+            mapper_monitor_unlink(mon, device_full_name, mdev_name(recdev));
+        }
         mapper_monitor_free(mon);
+    }
 }
 
 void push_signal_stack(const char *devname, const char *signame,

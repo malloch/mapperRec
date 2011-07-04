@@ -4,6 +4,7 @@
 
 extern const char *device_name;
 const char *path_name;
+char device_full_name[128];
 
 int recmonitor_start();
 void recmonitor_poll();
