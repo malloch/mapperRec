@@ -76,7 +76,7 @@ void text_write_value(mapper_signal msig, void *v)
     int take, frame;
     recdevice_get_frame(&take, &frame);
 
-    fprintf(output_file, "%u.%u %d %d %s %c",
+    fprintf(output_file, "%u %u %d %d %s %c",
             now.sec, now.frac, take, frame, path, mprop->type);
 
     if (mprop->type == 'i') {

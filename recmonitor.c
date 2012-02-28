@@ -12,6 +12,7 @@ const char *path_name = 0;
 
 mapper_monitor *mon;
 mapper_db *db;
+int dev_ready = 0;
 
 typedef struct _signal_list_t {
     const char *device_name;
@@ -35,10 +36,8 @@ static void device_callback(mapper_db_device dev,
 {
     if (action == MDB_NEW) {
         if (strstr(dev->name, device_name)!=0
-            && strcmp(dev->name, mdev_name(recdev)?mdev_name(recdev):"")!=0) {
+            && strcmp(dev->name, mdev_name(recdev)?mdev_name(recdev):"")!=0)
             mapper_monitor_request_signals_by_name(mon, dev->name);
-            strncpy(device_full_name, dev->name, 128);
-        }
     }
 }
 
@@ -58,7 +57,7 @@ static void signal_callback(mapper_db_signal sig,
 
 int recmonitor_start()
 {
-    mon = mapper_monitor_new();
+    mon = mapper_monitor_new(0, 0);
     if (mon) {
         db = mapper_monitor_get_db(mon);
         mapper_db_add_device_callback(db, device_callback, 0);
@@ -71,17 +70,29 @@ int recmonitor_start()
 void recmonitor_poll()
 {
     mapper_monitor_poll(mon, 0);
+    if (!dev_ready && mdev_ready(recdev)) {
+        mapper_monitor_request_devices(mon);
+        dev_ready = 1;
+    }
     record_signals_on_stack();
 }
 
 void recmonitor_stop()
 {
-    if (mon) {
-        if (device_full_name[0] == '/') {
-            mapper_monitor_unlink(mon, device_full_name, mdev_name(recdev));
+    if (!mon)
+        return;
+    if (mdev_ready(recdev)) {
+        const char *devname = mdev_name(recdev);
+        if (devname) {
+            mapper_db_device *dev = mapper_db_match_devices_by_name(db, device_name);
+            while (dev) {
+                printf("Unlinking %s %s\n", (*dev)->name, devname);
+                mapper_monitor_unlink(mon, (*dev)->name, devname);
+                dev = mapper_db_device_next(dev);
+            }
         }
-        mapper_monitor_free(mon);
     }
+    mapper_monitor_free(mon);
 }
 
 void push_signal_stack(const char *devname, const char *signame,
