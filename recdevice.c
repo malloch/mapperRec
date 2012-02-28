@@ -14,7 +14,8 @@ struct
     int frame;
 } framestamp = { 0, 0 };
 
-static void frame_handler(mapper_signal msig, mapper_db_signal props, mapper_timetag_t *time, void *v)
+static void frame_handler(struct _mapper_signal *msig, mapper_db_signal props,
+                   mapper_timetag_t *timetag, void *v)
 {
     int *i = (int*)v;
     framestamp.take  = i[0];
@@ -47,7 +48,7 @@ void recdevice_stop()
 }
 
 void input_handler(struct _mapper_signal *msig, mapper_db_signal props,
-                   mapper_timetag_t *time, void *v)
+                   mapper_timetag_t *timetag, void *v)
 {
     backend_write_value(msig, v);
 }
