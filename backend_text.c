@@ -14,7 +14,8 @@ backend_text_options_t backend_text_options;
 static FILE* output_file = 0;
 static FILE* input_file = 0;
 
-static lo_timetag last_write = {0,0};
+extern int num_msgs;
+extern mapper_timetag_t start;
 
 void text_defaults()
 {
@@ -25,6 +26,8 @@ void text_defaults()
 
 int text_start()
 {
+    mapper_timetag_now(&start);
+
     if (!backend_text_options.file_path) {
         printf("No output filename specified.\n");
         return 1;
@@ -62,88 +65,39 @@ int text_poll()
 }
 
 /* TODO: Bundle messages together that happen in the same call to poll(). */
-void text_write_value(mapper_signal msig, void *v,
-                      mapper_timetag_t *tt)
+void text_write_value(mapper_signal sig, const void *v, mapper_timetag_t *tt)
 {
     int i;
     char str[1024], *path = str;
-    msig_full_name(msig, path, 1024); 
-
-    if (path[0]=='/')
-        path ++;
-
-    while (path[0] && path[0]!='/')
-        path ++;
+    mapper_device dev = mapper_signal_device(sig);
+    snprintf(path, 1024, "%s/%s", mapper_device_name(dev),
+             mapper_signal_name(sig));
+    char type = mapper_signal_type(sig);
+    int length = mapper_signal_length(sig);
 
     lo_timetag now;
     lo_timetag_now(&now);
 
-    mapper_db_signal mprop = msig_properties(msig);
-
     if (!tt || !tt->sec)
-        fprintf(output_file, "%u %u %s %c ",
-                now.sec, now.frac, path, mprop->type);
+        fprintf(output_file, "%u %u %s %c ", now.sec, now.frac, path, type);
     else
-        fprintf(output_file, "%u %u %s %c ",
-                tt->sec, tt->frac, path, mprop->type);
+        fprintf(output_file, "%u %u %s %c ", tt->sec, tt->frac, path, type);
 
-    if (mprop->type == 'i') {
-        for (i=0; i<mprop->length; i++)
+    if (type == 'i') {
+        for (i = 0; i < length; i++)
             fprintf(output_file, " %d", ((int*)v)[i]);
     }
-    else if (mprop->type == 'f') {
-        for (i=0; i<mprop->length; i++)
+    else if (type == 'f') {
+        for (i = 0; i < length; i++)
             fprintf(output_file, " %g", ((float*)v)[i]);
     }
 
     fprintf(output_file, "\n");
     fflush(output_file);
 
-    if (now.sec > last_write.sec) {
-        printf(".");
-        fflush(stdout);
-        last_write = now;
-    }
-}
-
-/* TODO: Bundle messages together that happen in the same call to poll(). */
-void text_write_generic(const char *path,
-                        const char *types,
-                        lo_message m)
-{
-    lo_timetag now;
-    lo_timetag_now(&now);
-
-    lo_timetag tt = lo_message_get_timestamp(m);
-
-    if (memcmp(&tt, &LO_TT_IMMEDIATE, sizeof(lo_timetag))==0)
-        fprintf(output_file, "%u %u %s %s ",
-                now.sec, now.frac, path, types);
-    else
-        fprintf(output_file, "%u %u %s %s ",
-                tt.sec, tt.frac, path, types);
-
-    lo_arg **a = lo_message_get_argv(m);
-    const char *t;
-    int i=0;
-    for (t=types; *t; t++, i++)
-    {
-        if (*t == 'i')
-            fprintf(output_file, " %d", a[i]->i);
-        else if (*t == 'f')
-            fprintf(output_file, " %g", a[i]->f);
-        else if (*t == 's')
-            fprintf(output_file, " %s", &a[i]->s);
-    }
-
-    fprintf(output_file, "\n");
-    fflush(output_file);
-
-    if (now.sec > last_write.sec) {
-        printf(".");
-        fflush(stdout);
-        last_write = now;
-    }
+    printf("\rRecording: %f seconds, %d messages.",
+           mapper_timetag_difference(*tt, start), num_msgs++);
+    fflush(stdout);
 }
 
 int text_seek_start()

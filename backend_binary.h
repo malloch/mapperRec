@@ -14,7 +14,6 @@ void binary_defaults();
 int binary_start();
 void binary_stop();
 int binary_poll();
-void binary_write_value(mapper_signal msig, void *v,
-                        mapper_timetag_t *tt);
+void binary_write_value(mapper_signal msig, const void *v, mapper_timetag_t *tt);
 
 #endif // __BACKEND_BINARY_H__

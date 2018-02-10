@@ -15,6 +15,9 @@ FILE* oscstreamdb_process = 0;
 
 lo_address a_write = 0;
 
+extern int num_msgs;
+extern mapper_timetag_t start;
+
 void oscstreamdb_defaults()
 {
     memset(&backend_oscstreamdb_options, 0,
@@ -28,6 +31,8 @@ int oscstreamdb_start()
 {
     /* Note: We are using "script" here to force oscstreamdb to flush
      * its output more quickly. */
+
+    mapper_timetag_now(&start);
 
     char cmd[MAXPATHLEN];
     if (backend_oscstreamdb_options.database) {
@@ -102,20 +107,16 @@ int oscstreamdb_poll()
 }
 
 /* TODO: Bundle messages together that happen in the same call to poll(). */
-void oscstreamdb_write_value(mapper_signal msig, void *v,
+void oscstreamdb_write_value(mapper_signal sig, const void *v,
                              mapper_timetag_t *tt)
 {
     int i;
     char str[1024], *path = str;
-    msig_full_name(msig, path, 1024); 
-
-    if (path[0]=='/')
-        path ++;
-
-    while (path[0] && path[0]!='/')
-        path ++;
-
-    mapper_db_signal mprop = msig_properties(msig);
+    mapper_device dev = mapper_signal_device(sig);
+    snprintf(path, 1024, "%s/%s", mapper_device_name(dev),
+             mapper_signal_name(sig));
+    char type = mapper_signal_type(sig);
+    int length = mapper_signal_length(sig);
 
     if (!a_write)
         printf("No write port yet. :(\n");
@@ -140,12 +141,12 @@ void oscstreamdb_write_value(mapper_signal msig, void *v,
             return;
         }
 
-        if (mprop->type == 'i') {
-            for (i=0; i<mprop->length; i++)
+        if (type == 'i') {
+            for (i = 0; i < length; i++)
                 lo_message_add_int32(m, ((int*)v)[i]);
         }
-        else if (mprop->type == 'f') {
-            for (i=0; i<mprop->length; i++)
+        else if (type == 'f') {
+            for (i = 0; i < length; i++)
                 lo_message_add_float(m, ((float*)v)[i]);
         }
 
@@ -153,5 +154,9 @@ void oscstreamdb_write_value(mapper_signal msig, void *v,
         lo_send_bundle(a_write, b);
 
         lo_bundle_free_messages(b);
+
+        printf("\rRecording: %f seconds, %d messages.",
+               mapper_timetag_difference(*tt, start), num_msgs++);
+        fflush(stdout);
     }
 }

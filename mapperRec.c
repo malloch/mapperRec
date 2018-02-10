@@ -13,7 +13,6 @@
 #include "mapperRec.h"
 #include "backend.h"
 #include "command.h"
-#include "recmonitor.h"
 #include "recdevice.h"
 #include "backend_text.h"
 #include "backend_binary.h"
@@ -30,14 +29,14 @@ void help()
                      "[-o <output file>]\n"
            "          [-s <mapper or OSC signal to match>]\n"
            "          [-p <playback mode>] "
-                     "[-u <destination OSC URL>] "
+           "          [--speed <relative speed for playback>]"
                      "[-v] [-h]\n\n"
            "Backend-specific options are comma-separated key=value pairs.\n"
            "Options are,\n"
            "  OSCStreamDB: \"path\" (to oscsstreamdb executable), "
                           "\"database\", \"stream\"\n\n"
-           "Destination OSC URLs for playback mode are specified in the format\n"
-           "supported by liblo, e.g., \"osc.udp://<host>:<port>\".\n");
+           "In playback mode, mapperRec will emulate the recorded device(s), "
+           "and enable an interactive transport control.\n");
 }
 
 int parse_options(const char *optarg)
@@ -45,23 +44,19 @@ int parse_options(const char *optarg)
     char *opts = alloca(strlen(optarg));
     strcpy(opts, optarg);
     char *p, *s = strtok_r(opts, ",", &p);
-    while (s)
-    {
+    while (s) {
         char *q, *t = strtok_r(s, "=", &q);
         t = strtok_r(0, "=", &q);
-        if (strncmp(s, "path", 4)==0
-            && backend==BACKEND_OSCSTREAMDB)
-        {
+        if (strncmp(s, "path", 4) == 0
+            && backend == BACKEND_OSCSTREAMDB) {
             backend_oscstreamdb_options.executable_path = strdup(t);
         }
-        else if (strncmp(s, "database", 8)==0
-                 && backend==BACKEND_OSCSTREAMDB)
-        {
+        else if (strncmp(s, "database", 8) == 0
+                 && backend == BACKEND_OSCSTREAMDB) {
             backend_oscstreamdb_options.database = strdup(t);
         }
-        else if (strncmp(s, "stream", 6)==0
-                 && backend==BACKEND_OSCSTREAMDB)
-        {
+        else if (strncmp(s, "stream", 6) == 0
+                 && backend == BACKEND_OSCSTREAMDB) {
             backend_oscstreamdb_options.stream = strdup(t);
         }
         else {
@@ -77,8 +72,7 @@ int parse_options(const char *optarg)
 int cmdline(int argc, char *argv[])
 {
     int c, i;
-    while (1)
-    {
+    while (1) {
         static struct option long_options[] =
         {
             {"help",        no_argument,       0, 'h'},
@@ -89,7 +83,6 @@ int cmdline(int argc, char *argv[])
             {"output",      required_argument, 0, 'o'},
             {"signal",      required_argument, 0, 's'},
             {"playback",    no_argument, 0, 'p'},
-            {"url",         required_argument, 0, 'u'},
             {0, 0, 0, 0}
         };
         int option_index = 0;
@@ -99,8 +92,7 @@ int cmdline(int argc, char *argv[])
         if (c == -1)
             break;
 
-        switch (c)
-        {
+        switch (c) {
         case 0:
             break;
 
@@ -122,11 +114,11 @@ int cmdline(int argc, char *argv[])
             break;
 
         case 'd':
-            recmonitor_add_device_string(optarg);
+            recdevice_add_device_string(optarg);
             break;
 
         case 's':
-            recmonitor_add_signal_string(optarg);
+            recdevice_add_signal_string(optarg);
             break;
 
         case 'o':
@@ -138,10 +130,6 @@ int cmdline(int argc, char *argv[])
             // Toggle playback mode.
             // i.e., if started as mapperPlay, turns playback mode off.
             playback_mode = !playback_mode;
-            break;
-
-        case 'u':
-            playback_options.dest_url = optarg;
             break;
 
         case 'v':
@@ -177,7 +165,7 @@ void ctrlc(int sig)
 
 int main(int argc, char *argv[])
 {
-    int rc=0;
+    int rc = 0;
 
     signal(SIGINT, ctrlc);
 
@@ -199,7 +187,6 @@ int main(int argc, char *argv[])
         backend_stop = text_stop;
         backend_poll = text_poll;
         backend_write_value = text_write_value;
-        backend_write_generic = text_write_generic;
         backend_seek_start = text_seek_start;
         backend_read = text_read;
         break;
@@ -208,8 +195,6 @@ int main(int argc, char *argv[])
         backend_stop = binary_stop;
         backend_poll = binary_poll;
         backend_write_value = binary_write_value;
-        //WIP
-        //backend_write_generic = binary_write_generic;
         break;
     case BACKEND_OSCSTREAMDB:
         if (backend_oscstreamdb_options.stream==0) {
@@ -220,8 +205,6 @@ int main(int argc, char *argv[])
         backend_stop = oscstreamdb_stop;
         backend_poll = oscstreamdb_poll;
         backend_write_value = oscstreamdb_write_value;
-        //WIP
-        //backend_write_generic = oscstreamdb_write_generic;
         break;
     default:
         printf("Unknown backend selected.\n");
@@ -239,12 +222,6 @@ int main(int argc, char *argv[])
         goto done;
     }
 
-    if (recmonitor_start()) {
-        printf("Error starting monitor.\n");
-        rc = 1;
-        goto done;
-    }
-
     if (recdevice_start()) {
         printf("Error starting device.\n");
         rc = 1;
@@ -252,14 +229,12 @@ int main(int argc, char *argv[])
     }
 
     while (!(backend_poll() || command_poll() || done)) {
-        recmonitor_poll();
         recdevice_poll(100);
     }
 
   done:
     printf("Exiting.\n");
 
-    recmonitor_stop();
     recdevice_stop();
     backend_stop();
 

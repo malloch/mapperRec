@@ -49,10 +49,10 @@ backend_patterns = {
 }
     
 def set_device_name(name):
-    rec.recmonitor_add_device_string(name)
+    rec.recdevice_add_device_string(name)
 
 def set_path_name(name):
-    rec.recmonitor_add_signal_string(name)
+    rec.recdevice_add_signal_string(name)
 
 def set_backend(b):
     backend.value = backend_patterns[b]
@@ -96,14 +96,11 @@ def start():
         raise Exception("Error starting backend.")
 
     try:
-        if rec.recmonitor_start():
-            raise Exception("Error starting monitor.")
-
         try:
             if rec.recdevice_start():
                 raise Exception("Error starting device.")
         except:
-            rec.recmonitor_stop()
+            rec.recdevice_stop()
             raise
 
     except:
@@ -112,7 +109,6 @@ def start():
 
 def stop():
     rec.recdevice_stop()
-    rec.recmonitor_stop()
     if ctypes.c_int.in_dll(rec, "backend_stop")!=0:
         backend_stop = ctypes.CFUNCTYPE(None).in_dll(rec, "backend_stop")
         backend_stop()
@@ -121,7 +117,6 @@ def poll():
     backend_poll = ctypes.CFUNCTYPE(None).in_dll(rec, "backend_poll")
     if backend_poll() or rec.command_poll():
         return True
-    rec.recmonitor_poll()
     rec.recdevice_poll()
 
 _get_device_name = rec.get_device_name

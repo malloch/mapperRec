@@ -37,6 +37,19 @@ void playback(int just_print)
     if (backend_seek_start())
         exit(0);
 
+    printf("Scanning file for devices...\n");
+    printf("Registering devices...\n");
+    printf("Ready! Press spacebar to play or pause.\n");
+    printf("Press 'l' to toggle looping.\n");
+    printf("Use left and right arrows to adjust playback speed.\n");
+    printf("Done playing - replay? (y/n)\n");
+
+    printf("------- TRANSPORT --------\n");
+    printf("----|---------------------\n");
+    printf("    └─ 34sec              \n");
+    printf("Looping: ENABLED\n");
+    printf("Speed:   1.5x\n");
+
     lo_message m;
     lo_timetag tt, first_tt;
     char *path;
